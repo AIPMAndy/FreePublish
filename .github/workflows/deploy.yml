@@ -1,8 +1,7 @@
 name: Publish FreePublish to GitHub Pages
 
+# Optional standalone Pages deployment; production lives in AIPMAndy.github.io/FreePublish
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
