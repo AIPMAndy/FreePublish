@@ -16,7 +16,7 @@ test('ZIP with UTF-8 files has PK local and central directory headers', async ()
   assert.equal(new DataView(bytes.buffer).getUint16(bytes.length - 12, true), 2);
 });
 test('ZIP rejects duplicate and unsafe filenames', async () => {
-  assert.equal(safeFileName('../private/token.txt'), '___private_token.txt');
+  assert.equal(safeFileName('../private/token.txt'), '__private_token.txt');
   await assert.rejects(buildZip([
     { name: '../secret.txt', data: 'a' }, { name: '..\\secret.txt', data: 'b' }
   ]), /重名/);

@@ -16,7 +16,7 @@ const TITLE_FALLBACK = '未命名内容';
 
 export function createPost(id = makeId()) {
   return {
-    id, revision: 0, title: '', source: '', kind: 'video', mediaNames: [],
+    id, revision: 0, title: '', source: '', kind: 'video', mediaNames: [], mediaInfo: [],
     rights: 'unknown', aiUsed: false, commercial: false,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     variants: {}
@@ -44,9 +44,11 @@ export function generateVariant(post, platform) {
     body: String(post.source || '').trim(),
     tags: extractTags(post.source).join(' '),
     plannedAt: '',
+    accountLabel: '',
     aiLabel: false,
     commercialLabel: false,
     warningAcknowledged: false,
+    publishChecks: { account: false, media: false, disclosures: false, visibility: false },
     approvedFingerprint: '',
     approvedAt: '',
     reviewer: '',
@@ -70,9 +72,9 @@ export function fingerprint(post, platform) {
   const v = post.variants[platform];
   if (!v) return '';
   const payload = JSON.stringify([
-    post.revision || 0, post.title, post.source, post.kind, post.mediaNames, post.rights,
+    post.revision || 0, post.title, post.source, post.kind, post.mediaNames, post.mediaInfo, post.rights,
     post.aiUsed, post.commercial,
-    v.title, v.body, v.tags, v.plannedAt, v.aiLabel, v.commercialLabel
+    v.title, v.body, v.tags, v.plannedAt, v.accountLabel, v.aiLabel, v.commercialLabel
   ]);
   let hash = 2166136261;
   for (let i = 0; i < payload.length; i++) {
@@ -84,6 +86,13 @@ export function fingerprint(post, platform) {
 export function isApproved(post, platform) {
   const v = post.variants[platform];
   return !!(v && v.approvedFingerprint && v.approvedFingerprint === fingerprint(post, platform));
+}
+export function finalChecklistDone(post, platform) {
+  const c = post?.variants?.[platform]?.publishChecks;
+  return !!(c && c.account === true && c.media === true && c.disclosures === true && c.visibility === true);
+}
+export function readyForManualPublish(post, platform) {
+  return isApproved(post, platform) && finalChecklistDone(post, platform);
 }
 export function normalizeText(text) {
   return String(text || '').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
@@ -116,6 +125,12 @@ export function review(post, platform, allPosts = [], now = new Date()) {
   if (!post.mediaNames.length && cfg.type === 'video') {
     add('media-missing', 'warn', '未登记视频文件；正式发布前必须在官方页面亲自核对素材。');
   }
+  if (Array.isArray(post.mediaInfo)) for (const item of post.mediaInfo) {
+    if (item.width && item.height && Math.min(item.width, item.height) < 640)
+      add('low-resolution', 'warn', '素材 '+item.name+' 的短边小于 640px；请在官方页面核对画质要求。');
+    if (item.type === 'video' && item.duration && item.duration > 900)
+      add('long-video', 'warn', '素材 '+item.name+' 超过 15 分钟；请按平台真实规格核对。');
+  }
   if (v.plannedAt) {
     const planned = new Date(v.plannedAt);
     if (Number.isNaN(planned.getTime())) add('invalid-date', 'block', '计划时间无效。');
@@ -141,6 +156,7 @@ export function canApprove(post, platform, allPosts = []) {
 export function approve(post, platform, allPosts = [], reviewer = '人工审核') {
   if (!canApprove(post, platform, allPosts)) throw new Error('审核未通过或尚未确认提示项。');
   const v = post.variants[platform];
+  v.publishChecks = { account: false, media: false, disclosures: false, visibility: false };
   v.approvedFingerprint = fingerprint(post, platform);
   v.approvedAt = new Date().toISOString();
   v.reviewer = String(reviewer || '人工审核').slice(0, 60);
@@ -157,7 +173,7 @@ export function validPublishUrl(platform, raw) {
 }
 export function confirmPublished(post, platform, url) {
   const v = post.variants[platform];
-  if (!isApproved(post, platform)) throw new Error('版本未获审核，或审核后内容已改动。');
+  if (!readyForManualPublish(post, platform)) throw new Error('请先完成有效人工审核和全部发布前核对项。');
   if (!validPublishUrl(platform, url)) throw new Error('请填写该平台真实的 HTTPS 作品链接。');
   v.publishedUrl = url.trim();
   v.publishedAt = new Date().toISOString();
@@ -168,7 +184,7 @@ export function variantStatus(post, platform) {
   const v = post.variants[platform];
   if (!v) return '未准备';
   if (v.publishedUrl) return v.publishedFingerprint === fingerprint(post, platform) ? '已发布·人工登记' : '已发布·有新修改';
-  if (isApproved(post, platform)) return '已审核·待手动发布';
+  if (isApproved(post, platform)) return finalChecklistDone(post, platform) ? '已核对·待手动发布' : '已审核·待最终核对';
   if (v.approvedFingerprint) return '修改后待复审';
   return '待审核';
 }
@@ -194,6 +210,14 @@ export function importState(value) {
     post.source = cleanStr(raw.source);
     post.kind = ['video', 'image', 'text'].includes(raw.kind) ? raw.kind : 'text';
     post.mediaNames = Array.isArray(raw.mediaNames) ? raw.mediaNames.filter(x => typeof x === 'string').slice(0, 30).map(x => cleanStr(x, 200)) : [];
+    post.mediaInfo = Array.isArray(raw.mediaInfo) ? raw.mediaInfo.slice(0, 30).filter(x => x && typeof x === 'object').map(x => ({
+      name: cleanStr(x.name, 160), type: ['image','video'].includes(x.type) ? x.type : 'unknown',
+      bytes: Number.isFinite(x.bytes) ? Math.max(0, Math.min(200000000, x.bytes)) : 0,
+      width: Number.isFinite(x.width) ? Math.max(0, Math.min(100000, x.width)) : 0,
+      height: Number.isFinite(x.height) ? Math.max(0, Math.min(100000, x.height)) : 0,
+      duration: Number.isFinite(x.duration) ? Math.max(0, Math.min(86400, x.duration)) : 0,
+      ratio: cleanStr(x.ratio, 60), orientation: cleanStr(x.orientation, 30)
+    })) : [];
     post.rights = ['owned', 'licensed', 'unknown'].includes(raw.rights) ? raw.rights : 'unknown';
     post.aiUsed = raw.aiUsed === true;
     post.commercial = raw.commercial === true;
@@ -204,9 +228,11 @@ export function importState(value) {
       const v = generateVariant(post, platform);
       for (const field of ['title', 'body', 'tags', 'plannedAt', 'approvedFingerprint', 'approvedAt', 'reviewer', 'publishedUrl', 'publishedAt', 'publishedFingerprint'])
         v[field] = cleanStr(old[field], field === 'body' ? 50000 : 1000);
+      v.accountLabel = cleanStr(old.accountLabel, 120);
       v.aiLabel = old.aiLabel === true;
       v.commercialLabel = old.commercialLabel === true;
       v.warningAcknowledged = old.warningAcknowledged === true;
+      v.publishChecks = { account: false, media: false, disclosures: false, visibility: false };
       // Never trust imported approvals/publication receipts as verified facts.
       v.approvedFingerprint = '';
       v.approvedAt = '';
