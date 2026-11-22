@@ -177,6 +177,11 @@ function renderVariantEditor(post) {
     '> 我已确认该平台的 AI 生成内容标识要求及发布时应选的标注</label>' +
     '<label class="checkbox-line"><input type="checkbox" data-scope="variant" data-field="commercialLabel"' + (v.commercialLabel ? ' checked' : '') +
     '> 我已确认该平台的广告/营销声明要求</label>' +
+    '<hr class="group-divider"><div class="field-label" style="margin-bottom:12px">发布内容预览 <span class="panel-subtitle">· 文字模拟，非平台真实渲染</span></div>' +
+    '<div class="preview-wrap"><div class="preview-phone"><div class="preview-top">' + e(pName(selectedPlatform)) + ' · 内容预览</div>' +
+    '<div class="preview-media">' + (post.mediaNames.length ? e(post.mediaNames.join(' · ')) : '媒体需在官方页面手动上传') + '</div>' +
+    '<div class="preview-copy"><b>' + e(v.title || '待填写标题') + '</b><p>' + e(v.body || '待填写正文') + '</p>' +
+    '<span>' + e(v.tags) + '</span></div></div></div>' +
     '<hr class="group-divider"><div class="btn-group"><button class="btn btn-primary" data-action="go-review" type="button">进入安全审核 →</button>' +
     '<button class="btn" data-action="save" type="button">保存版本</button></div><p class="fine-print">保存或编辑后，旧审核状态将自动失效。AI/广告勾选是人工检查记录，并不会替你操作平台设置。</p></div></section>';
 }
@@ -438,7 +443,7 @@ async function action(name, dataset) {
     const item = requirePost();
     requireApproved(item, selectedPlatform);
     const v = item.variants[selectedPlatform];
-    await copyText(name === 'copy-title' ? v.title : [v.body, v.tags].filter(Boolean).join('\n\n'));
+    await copyText(name === 'copy-title' ? v.title : v.body + (v.tags && !v.body.includes(v.tags) ? '\n\n' + v.tags : ''));
     return;
   }
   if (name === 'download-package') {
