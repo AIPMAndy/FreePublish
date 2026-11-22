@@ -58,17 +58,20 @@ test('误用其他域名和不安全 scheme 不能登记为已发布', () => {
   assert.equal(validPublishUrl('xiaohongshu', 'javascript:alert(1)'), false);
   assert.equal(validPublishUrl('xiaohongshu', 'https://www.xiaohongshu.com/explore/123'), true);
 });
+function finishChecks(post, platform = 'xiaohongshu') { post.variants[platform].publishChecks = { account: true, media: true, disclosures: true, visibility: true }; }
 test('发布登记要求先通过审核且真实平台作品链接', () => {
   const p = fixture();
   assert.throws(() => confirmPublished(p, 'xiaohongshu', 'https://www.xiaohongshu.com/explore/123'));
   p.variants.xiaohongshu.warningAcknowledged = true;
   approve(p, 'xiaohongshu', [p]);
+  finishChecks(p);
   confirmPublished(p, 'xiaohongshu', 'https://www.xiaohongshu.com/explore/123');
   assert.equal(variantStatus(p, 'xiaohongshu'), '已发布·人工登记');
 });
 test('导入备份不会信任伪造审核与已发布状态', () => {
   const p = fixture(); p.variants.xiaohongshu.warningAcknowledged = true;
   approve(p, 'xiaohongshu', [p]);
+  finishChecks(p);
   confirmPublished(p, 'xiaohongshu', 'https://www.xiaohongshu.com/explore/123');
   const original = { ...emptyState(), posts: [p] };
   const restored = importState(JSON.parse(exportState(original)));
@@ -82,4 +85,13 @@ test('标题长度阈值：视频号阻断，其他平台提示', () => {
 test('静态模式不包含任何实际平台请求', () => {
   const p = fixture();
   assert.equal(generateVariant(p, 'threads').body, p.source);
+});
+
+test('人工审核通过还需要四项发布前核对', () => {
+  const p = fixture(); p.variants.xiaohongshu.warningAcknowledged = true;
+  approve(p, 'xiaohongshu', [p]);
+  assert.equal(isApproved(p, 'xiaohongshu'), true);
+  assert.throws(() => confirmPublished(p, 'xiaohongshu', 'https://www.xiaohongshu.com/explore/123'));
+  finishChecks(p);
+  confirmPublished(p, 'xiaohongshu', 'https://www.xiaohongshu.com/explore/123');
 });
