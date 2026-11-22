@@ -1,5 +1,7 @@
 # free publish
 
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+
 把一条视频安全地送到多个平台，且不拿账号去赌。
 
 这不是一个"一键分发工具"。它是一套判断方法和操作规范：告诉你哪一步可以交给机器，哪一步必须人来做，以及为什么。
