@@ -1,14 +1,17 @@
 # FreePublish
 
+**在线使用：[打开 FreePublish 工作台](https://aipmandy.github.io/FreePublish/)** · [独立上线验收](https://github.com/AIPMAndy/AIPMAndy.github.io/actions/runs/44991290795)
+
+
 **安全多平台半自动发布工作台｜Local-first · Human-approved**
 
 把一条内容整理成多个平台版本，统一完成风险预检、人工审核、复制发布材料和发布结果登记。**不读取账号密码 / Cookie，不自动点击平台「发布」，不在后台代发。**
 
-> FreePublish 2.0 是从原来的 **free publish** 安全发布手册演化来的可运行工具。历史文档保留在根目录的 `01-规则与边界.md` 至 `05-失败模式库.md` 中。平台具体规则会变，使用前需核对官方最新页面。
+> FreePublish 3.0 是从原来的 **free publish** 安全发布手册演化来的可运行工具。历史文档保留在根目录的 `01-规则与边界.md` 至 `05-失败模式库.md` 中。平台具体规则会变，使用前需核对官方最新页面。
 
 ## 现在已支持
 
-| 功能 | V2 实现 | 边界 |
+| 功能 | V3 实现 | 边界 |
 |---|---|---|
 | 内容库 | 原始标题、主稿、图片/视频规格、权属、AI/商业属性 | 浏览器临时读取媒体，文件本体不上传 |
 | 平台版本 | 小红书、抖音、视频号、B 站、Threads、X | 创建规则初稿，人工改稿；不声称 AI 自动生成 |
@@ -77,10 +80,18 @@ Copyright © 2026 Andy · AI 酋长 Andy。
 当前仓库继续沿用 [CC BY-NC 4.0](./LICENSE)，授权范围与历史仓库保持一致。**这是公开源代码的非商业许可，并非 OSI 定义的开源软件许可证**；若希望面向企业提供商业可用的开源 SDK，可另行决定代码与内容的许可策略。
 
 
-## GitHub Pages 自动上线
+## 正式上线与发布方式
 
-已配置 [.github/workflows/deploy.yml](./.github/workflows/deploy.yml)：每次主分支更新先通过 JavaScript 语法检查、单元测试，再生成最小化静态产物并交由 GitHub Pages 发布。
+正式在线工作台：**https://aipmandy.github.io/FreePublish/**
 
-首次启用时，请有仓库管理员权限的用户打开 [Settings → Pages](https://github.com/AIPMAndy/free-publish/settings/pages)，把 **Build and deployment → Source** 设置为 **GitHub Actions**。在没有确认 Pages 工作流成功、且能打开实际 URL 之前，不应对外宣称已经上线。未开启 Pages 时 configure-pages 可能返回 404；开启后在 Actions 中重跑即可。
+此地址位于已经启用 GitHub Pages 的 [AIPMAndy.github.io 根站](https://github.com/AIPMAndy/AIPMAndy.github.io/tree/main/FreePublish)，由根站的 Pages 工作流部署。上线以 [独立公网验证工作流](https://github.com/AIPMAndy/AIPMAndy.github.io/actions/runs/44991290795) 的 HTTP 检查为准：逐一读取线上首页、版本文件和应用脚本，并比对源代码提交 SHA。
 
-**关键边界：**本版本不具备跨设备数据库同步和可信多人审批，亦不自动上传/提交任何平台。开展真实的团队多角色审核，需要部署额外的后端身份与权限系统，接入官方 API 还需实际申请并授权，不能以浏览器脚本绕过规则。静态托管环境中所有内容仍只存于用户自己的浏览器 localStorage。媒体文件只在本次选取后保持在页面内存，刷新即需重新选择。
+源仓库的 [.github/workflows/deploy.yml](./.github/workflows/deploy.yml) 仅用于以后**可选的独立 GitHub Pages 部署**，不再在每次主分支更新时尝试向一个尚未启用 Pages 的仓库发布。若要把独立源仓库也设置为 Pages 站点，需要管理员在 [Settings → Pages](https://github.com/AIPMAndy/free-publish/settings/pages) 首次启用 GitHub Actions Source。
+
+**版本发布注意：** 当前正式站点是源仓库主分支的一个经过测试的静态快照。更新源码后，要将运行用文件镜像到根站的 `FreePublish/` 并让根站 Pages 部署；直接改源仓库不等于现网自动更新。正式版本号见已部署的 `FreePublish/version.json`。
+
+## 尚未实现的企业级能力
+
+企业多账号 OAuth、官方发布 API 真实提交、服务端身份与角色审核、跨设备同步、不可篡改的审计日志，需要真实平台授权与服务端环境。**当前 V3 只提供安全本地优先的半自动流程，不能把导出的 ZIP 或打开官方平台理解为已自动代发**。
+
+用户稿件和审核数据保存在浏览器 localStorage；媒体文件仅在本次会话中临时读取。清理站点数据、换设备或刷新后需重新选择媒体，请定期导出 JSON 备份。

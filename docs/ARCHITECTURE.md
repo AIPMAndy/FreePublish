@@ -64,3 +64,11 @@
 - 安全默认：CSP 限制源站脚本、连接与嵌入；不向第三方传稿，出站只通过用户点击官方平台。
 - 自动上线：GitHub Pages workflow 的 verify → deploy 流水线；管理员须首次在 Pages 设置启用 GitHub Actions。
 - 仍不包括：跨设备同步、企业级不可篡改审计、OAuth 账号授权、多角色审批、官方上传/发布 API。上述能力须具备真实平台应用权限与可信后端。
+
+## 已验证的生产部署
+
+- 正式地址：https://aipmandy.github.io/FreePublish/
+- 承载仓库：AIPMAndy/AIPMAndy.github.io，独立目录 `FreePublish/`。
+- 2026-11-22 GitHub Pages deploy 成功，独立 HTTP 验收：Actions run 44991290795（验证首页、version.json、app.mjs）。
+- 本源仓库的 deploy.yml 是可选独立 Pages 模式，仅手动运行；根站的 Pages 发布是实际线上路径。
+- 发布后需要将源站运行文件重新同步到根站才算生效，未提供跨仓自动同步能力。
