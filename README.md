@@ -26,8 +26,8 @@
 需要现代浏览器。推荐通过 HTTP 本地打开，而不是直接双击 `index.html`。
 
 ```bash
-git clone https://github.com/AIPMAndy/free-publish.git
-cd free-publish
+git clone https://github.com/AIPMAndy/FreePublish.git
+cd FreePublish
 python3 -m http.server 8000
 ```
 
@@ -86,7 +86,7 @@ Copyright © 2026 Andy · AI 酋长 Andy。
 
 此地址位于已经启用 GitHub Pages 的 [AIPMAndy.github.io 根站](https://github.com/AIPMAndy/AIPMAndy.github.io/tree/main/FreePublish)，由根站的 Pages 工作流部署。上线以 [独立公网验证工作流](https://github.com/AIPMAndy/AIPMAndy.github.io/actions/runs/44991290795) 的 HTTP 检查为准：逐一读取线上首页、版本文件和应用脚本，并比对源代码提交 SHA。
 
-源仓库的 [.github/workflows/deploy.yml](./.github/workflows/deploy.yml) 仅用于以后**可选的独立 GitHub Pages 部署**，不再在每次主分支更新时尝试向一个尚未启用 Pages 的仓库发布。若要把独立源仓库也设置为 Pages 站点，需要管理员在 [Settings → Pages](https://github.com/AIPMAndy/free-publish/settings/pages) 首次启用 GitHub Actions Source。
+源仓库的 [.github/workflows/deploy.yml](./.github/workflows/deploy.yml) 仅用于以后**可选的独立 GitHub Pages 部署**，不再在每次主分支更新时尝试向一个尚未启用 Pages 的仓库发布。若要把独立源仓库也设置为 Pages 站点，需要管理员在 [Settings → Pages](https://github.com/AIPMAndy/FreePublish/settings/pages) 首次启用 GitHub Actions Source。
 
 **版本发布注意：** 当前正式站点是源仓库主分支的一个经过测试的静态快照。更新源码后，要将运行用文件镜像到根站的 `FreePublish/` 并让根站 Pages 部署；直接改源仓库不等于现网自动更新。正式版本号见已部署的 `FreePublish/version.json`。
 
