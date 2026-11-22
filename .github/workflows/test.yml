@@ -22,5 +22,8 @@ jobs:
         run: |
           node --check src/core.mjs
           node --check src/app.mjs
+          node --check src/media.mjs
+          node --check src/zip.mjs
+          node --check src/calendar.mjs
       - name: Unit tests
         run: node --test tests/*.test.mjs
