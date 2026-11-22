@@ -2,8 +2,11 @@ import {
   PLATFORMS, DEFAULT_PLATFORMS, createPost, ensureVariants, generateVariant,
   emptyState, review, canApprove, approve, isApproved, confirmPublished,
   variantStatus, visibleTitle, importState, exportState, auditEvent,
-  validPublishUrl, charLength
+  validPublishUrl, charLength, finalChecklistDone, readyForManualPublish
 } from './core.mjs';
+import { buildZip, safeFileName } from './zip.mjs';
+import { inspectMedia, summarizeMedia } from './media.mjs';
+import { exportCalendar } from './calendar.mjs';
 
 const STORE_KEY = 'freepublish.v1';
 const workspace = document.getElementById('workspace');
@@ -15,6 +18,13 @@ let currentView = 'dashboard';
 let selectedId = state.posts[0] ? state.posts[0].id : '';
 let selectedPlatform = 'xiaohongshu';
 let toastTimer;
+const mediaFiles = new Map(); // File objects exist only in memory, never saved to localStorage.
+const mediaPreviews = new Map(); // Blob URLs revoked on replacement or import.
+function releasePreview(postId) {
+  const url = mediaPreviews.get(postId);
+  if (url) URL.revokeObjectURL(url);
+  mediaPreviews.delete(postId); mediaFiles.delete(postId);
+}
 
 function readLocal() {
   try {
@@ -151,9 +161,11 @@ function renderMainEditor(post) {
     '<option value="licensed"' + (post.rights === 'licensed' ? ' selected' : '') + '>已取得授权 / 可合法使用</option></select></div></div>' +
     '<label class="checkbox-line"><input type="checkbox" data-scope="post" data-field="aiUsed"' + (post.aiUsed ? ' checked' : '') + '> 内容包含需按平台规定声明的 AI 生成/合成部分</label>' +
     '<label class="checkbox-line"><input type="checkbox" data-scope="post" data-field="commercial"' + (post.commercial ? ' checked' : '') + '> 内容属于广告、带货或商业推广</label>' +
-    '<div class="field"><label for="media-files">关联本地文件名</label><input id="media-files" type="file" accept="image/*,video/*" multiple>' +
-    '<div class="field-hint">只记录所选文件名；<strong>不保存文件内容、不上传到服务器</strong>。实际发布时需在官方创作中心自行选择原文件。</div>' +
-    '<div class="callout">' + (post.mediaNames.length ? e(post.mediaNames.join(' · ')) : '当前尚未登记任何本地视频或图片文件。') + '</div></div>' +
+    '<div class="field"><label for="media-files">本地媒体素材 · 画幅/时长预检</label><input id="media-files" type="file" accept="image/*,video/*,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp" multiple>' +
+    '<div class="field-hint">文件只在本机浏览器临时读取，元数据保存在内容库，不会上传服务器；刷新页面后需要重新选择原文件才能打包。</div>' +
+    '<div class="media-meta">' + (post.mediaInfo?.length ? post.mediaInfo.map(function(item) { return '<div class="media-item">' + e(summarizeMedia(item)) + '</div>'; }).join('') : (post.mediaNames.length ? e(post.mediaNames.join(' · ')) : '尚未选择媒体，可先编辑纯文本。')) + '</div>' +
+    (post.mediaNames.length && !mediaFiles.has(post.id) ? '<div class="callout warn">历史文件名还在，但文件本体不会保留。导出带媒体的 ZIP 前请重新选择素材。</div>' : '') +
+    '</div>' +
     '<div class="btn-group"><button type="button" class="btn btn-primary" data-action="generate-all">生成四大平台初稿</button>' +
     '<button type="button" class="btn" data-action="save">保存修改</button>' +
     '<button type="button" class="btn btn-danger" data-action="delete">删除这条内容</button></div></div></section>';
@@ -171,6 +183,8 @@ function renderVariantEditor(post) {
     '<span class="field-hint">字数阈值是本地预检规则，正式要求以官方创作页面为准。</span></div>' +
     '<div class="field"><label for="variant-body">平台正文</label><textarea id="variant-body" class="long" data-scope="variant" data-field="body" placeholder="根据平台用户习惯重写开头、表达和 CTA">' + e(v.body) + '</textarea></div>' +
     '<div class="field"><label for="variant-tags">话题标签</label><input id="variant-tags" data-scope="variant" data-field="tags" value="' + e(v.tags) + '" placeholder="#AI工具 #内容创作"></div>' +
+    '<div class="field"><label for="variant-account">目标账号备注（仅填写昵称，不要填密码）</label><input id="variant-account" data-scope="variant" data-field="accountLabel" value="' + e(v.accountLabel || '') + '" placeholder="例如：醒觉官方号 @example">' +
+    '<span class="field-hint">审批后修改目标账号将触发重新审核。</span></div>' +
     '<div class="field"><label for="variant-plan">计划发布时间（仅本地提醒信息）</label><input id="variant-plan" type="datetime-local" data-scope="variant" data-field="plannedAt" value="' + e(v.plannedAt) + '">' +
     '<span class="field-hint">此字段不会调用平台定时接口，也不会自动发送。需在平台官方页面自行设置定时。</span></div>' +
     '<label class="checkbox-line"><input type="checkbox" data-scope="variant" data-field="aiLabel"' + (v.aiLabel ? ' checked' : '') +
@@ -179,7 +193,12 @@ function renderVariantEditor(post) {
     '> 我已确认该平台的广告/营销声明要求</label>' +
     '<hr class="group-divider"><div class="field-label" style="margin-bottom:12px">发布内容预览 <span class="panel-subtitle">· 文字模拟，非平台真实渲染</span></div>' +
     '<div class="preview-wrap"><div class="preview-phone"><div class="preview-top">' + e(pName(selectedPlatform)) + ' · 内容预览</div>' +
-    '<div class="preview-media">' + (post.mediaNames.length ? e(post.mediaNames.join(' · ')) : '媒体需在官方页面手动上传') + '</div>' +
+    '<div class="preview-media">' +
+    (mediaPreviews.has(post.id) ? (post.mediaInfo?.[0]?.type === 'video' ?
+      '<video controls preload="metadata" playsinline src="' + e(mediaPreviews.get(post.id)) + '"></video>' :
+      '<img loading="lazy" alt="本地图片预览" src="' + e(mediaPreviews.get(post.id)) + '">') :
+      (post.mediaNames.length ? e(post.mediaNames.join(' · ')) + '（重新选择文件才能预览）' : '媒体需在官方页面手动上传')) +
+    '</div>' +
     '<div class="preview-copy"><b>' + e(v.title || '待填写标题') + '</b><p>' + e(v.body || '待填写正文') + '</p>' +
     '<span>' + e(v.tags) + '</span></div></div></div>' +
     '<hr class="group-divider"><div class="btn-group"><button class="btn btn-primary" data-action="go-review" type="button">进入安全审核 →</button>' +
@@ -211,6 +230,8 @@ function renderReviewDetail(post, platform) {
   const blockers = issues.filter(function(i) { return i.severity === 'block'; }).length;
   const warnings = issues.filter(function(i) { return i.severity === 'warn'; }).length;
   const approved = isApproved(post, platform);
+  const prepared = readyForManualPublish(post, platform);
+  const checks = v.publishChecks || {};
   const status = variantStatus(post, platform);
   const ready = canApprove(post, platform, state.posts);
   const receipt = v.publishedUrl && validPublishUrl(platform, v.publishedUrl)
@@ -228,15 +249,24 @@ function renderReviewDetail(post, platform) {
     '<section class="panel"><div class="panel-head"><h2 class="panel-title">人工发布助手</h2><span class="panel-subtitle">不操作账号</span></div><div class="panel-body">' +
     (approved ? '<div class="callout"><strong>审核已通过。</strong>下面只会复制文字或打开官方创作中心。请你亲自检查登录账号、素材、可见范围、AI/商业声明和定时设置，并点击最终发布。</div>' :
       '<div class="callout warn"><strong>未获有效审核。</strong>请先完成预检并明确点击「人工审核通过」。修改内容也会触发重新审核。</div>') +
+    (approved ? '<div class="final-checks"><div class="field-label">最后一步 · 请逐项人工核对</div>' +
+      [
+        ['account','我已在官方页面核对登录账号' + (v.accountLabel ? '（预期：' + e(v.accountLabel) + '）' : '')],
+        ['media','我已核对原始素材、封面、字幕、音频与授权'],
+        ['disclosures','我已核对 AI/广告/原创等必要标识'],
+        ['visibility','我已核对可见范围、定时与最终预览']
+      ].map(function(item) { return '<label class="checkbox-line"><input type="checkbox" data-scope="publish-check" data-field="' + item[0] + '"' + (checks[item[0]] ? ' checked' : '') + '> ' + item[1] + '</label>'; }).join('') +
+      '</div>' : '') +
     '<div class="review-actions" style="margin-top:15px">' +
     '<button class="btn" data-action="copy-title" type="button"' + (approved ? '' : ' disabled') + '>复制标题</button>' +
     '<button class="btn" data-action="copy-body" type="button"' + (approved ? '' : ' disabled') + '>复制正文和话题</button>' +
     '<button class="btn" data-action="download-package" type="button"' + (approved ? '' : ' disabled') + '>下载发布说明</button>' +
-    '<button class="btn btn-primary" data-action="open-platform" type="button"' + (approved ? '' : ' disabled') + '>打开官方创作中心 ↗</button></div>' +
+    '<button class="btn" data-action="download-package-zip" type="button"' + (approved ? '' : ' disabled') + '>打包 ZIP（含已选素材）</button>' +
+    '<button class="btn btn-primary" data-action="open-platform" type="button"' + (prepared ? '' : ' disabled') + '>打开官方创作中心 ↗</button></div>' +
     '<div class="receipt"><div class="field"><label for="receipt-url">发布后回填作品链接</label>' +
     '<input class="text-input" type="url" id="receipt-url" placeholder="https://…… 真实作品链接" aria-describedby="receipt-hint">' +
     '<span class="field-hint" id="receipt-hint">只验证 URL 所属域名，不爬取平台、不验证作品是否真的公开。</span></div>' +
-    '<div class="btn-group"><button class="btn btn-primary" data-action="confirm-published" type="button"' + (approved ? '' : ' disabled') +
+    '<div class="btn-group"><button class="btn btn-primary" data-action="confirm-published" type="button"' + (prepared ? '' : ' disabled') +
     '>我已在平台发布，登记结果</button>' + receipt + '</div></div></div></section></div>';
 }
 function renderReview() {
@@ -267,7 +297,7 @@ function renderCalendar() {
       '</td><td><button class="btn btn-small" data-action="select-queue" data-id="' + e(x.post.id) +
       '" data-platform="' + e(x.platform) + '" type="button">查看审核</button></td></tr>';
   }).join('');
-  return header('PLANNING', '发布计划', '这是内容制作排期表，不是平台定时发布器。要真正定时，请到官方创作中心亲自设置。') +
+  return header('PLANNING', '发布计划', '这是内容制作排期表，不是平台定时发布器。要真正定时，请到官方创作中心亲自设置。','<button class="btn btn-primary" type="button" data-action="export-ics">导出日历提醒 .ics</button>') +
     '<div class="callout warn" style="margin-bottom:18px"><strong>重要：</strong>计划时间只存于浏览器。即使你关机、离线或关闭网页，这里都不会向任何平台发送内容或定时任务。</div>' +
     '<section class="panel"><div class="panel-head"><h2 class="panel-title">计划中的发布</h2><span class="panel-subtitle">' +
     planned.length + ' 个平台版本</span></div>' +
@@ -316,7 +346,9 @@ function requireApproved(post, platform) {
   if (!isApproved(post, platform)) throw new Error('版本尚未获有效的人工审核，请先审核。');
 }
 function download(name, text, type) {
-  const blob = new Blob([text], { type: type || 'text/plain;charset=utf-8' });
+  return downloadBlob(name, new Blob([text], { type: type || 'text/plain;charset=utf-8' }));
+}
+function downloadBlob(name, blob) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -352,7 +384,8 @@ function packageText(post, platform) {
     '平台：' + pName(platform),
     '审核时间：' + v.approvedAt,
     '计划时间：' + (v.plannedAt || '未设置，平台定时需手动设置'),
-    '文件名（仅提示，不含文件）：' + (post.mediaNames.join(', ') || '未登记'),
+    '目标账号备注：' + (v.accountLabel || '未填写'),
+    '本地素材文件名：' + (post.mediaNames.join(', ') || '未登记'),
     '平台标题：', v.title, '平台正文：', v.body,
     '话题：', v.tags, '',
     '发布前人工核对：',
@@ -409,6 +442,7 @@ async function action(name, dataset) {
   if (name === 'delete') {
     const item = requirePost();
     if (!confirm('确定删除「' + visibleTitle(item) + '」及所有平台版本？此操作不能撤销，请先导出备份。')) return;
+    releasePreview(item.id);
     state.posts = state.posts.filter(function(x) { return x.id !== item.id; });
     auditEvent(state, '删除内容', visibleTitle(item));
     selectedId = state.posts[0] ? state.posts[0].id : '';
@@ -451,8 +485,30 @@ async function action(name, dataset) {
     download('FreePublish-' + selectedPlatform + '-' + item.id.slice(0, 8) + '.txt', packageText(item, selectedPlatform));
     showToast('发布说明已下载，媒体文件仍需手动选择。'); return;
   }
-  if (name === 'open-platform') {
+  if (name === 'export-ics') {
+    const result = exportCalendar(state.posts, PLATFORMS);
+    if (!result.count) throw new Error('请先在内容库为平台版本设置计划发布时间。');
+    download('FreePublish-发布提醒.ics', result.contents, 'text/calendar;charset=utf-8');
+    showToast('已导出 ' + result.count + ' 个日历提醒；日历不会替你发帖。'); return;
+  }
+  if (name === 'download-package-zip') {
     const item = requirePost(); requireApproved(item, selectedPlatform);
+    const files = mediaFiles.get(item.id) || [];
+    if (item.mediaNames.length && !files.length) throw new Error('请先在内容库重新选择本地素材，才能打包真实媒体文件。');
+    const entries = [
+      { name: '发布说明.txt', data: packageText(item, selectedPlatform) },
+      { name: '标题.txt', data: item.variants[selectedPlatform].title },
+      { name: '正文.txt', data: item.variants[selectedPlatform].body }
+    ];
+    for (let i = 0; i < files.length; i++) entries.push({ name: '素材-' + (i + 1) + '-' + safeFileName(files[i].name), data: files[i] });
+    const zipBlob = await buildZip(entries);
+    downloadBlob('FreePublish-' + selectedPlatform + '-' + item.id.slice(0,8) + '.zip', zipBlob);
+    auditEvent(state, '导出本地发布包', visibleTitle(item), pName(selectedPlatform) + ' · ' + files.length + ' 个媒体文件（未上传）');
+    persist(); showToast('已在本地生成 ZIP。仍须人工在平台上传和发布。'); return;
+  }
+  if (name === 'open-platform') {
+    const item = requirePost();
+    if (!readyForManualPublish(item, selectedPlatform)) throw new Error('请先完成四项最终发布前核对。');
     window.open(PLATFORMS[selectedPlatform].url, '_blank', 'noopener,noreferrer');
     auditEvent(state, '打开官方入口', visibleTitle(item), pName(selectedPlatform) + ' · 不自动提交');
     persist(); showToast('已请求打开官方创作页面，最终发布需本人完成。'); return;
@@ -495,14 +551,29 @@ document.addEventListener('change', function(event) {
     if (input.id === 'media-files') {
       const post = selectedPost();
       if (!post) return;
-      post.mediaNames = Array.from(input.files || []).slice(0, 30).map(function(file) { return file.name; });
-      auditEvent(state, '关联素材名称', visibleTitle(post), post.mediaNames.length + ' 个本地文件名（未上传）');
-      touch(post); render();
+      const files = Array.from(input.files || []).slice(0, 30);
+      if (!files.length) return;
+      Promise.all(files.map(inspectMedia)).then(function(infos) {
+        releasePreview(post.id);
+        mediaFiles.set(post.id, files);
+        mediaPreviews.set(post.id, URL.createObjectURL(files[0]));
+        post.mediaNames = files.map(function(file) { return file.name; });
+        post.mediaInfo = infos;
+        auditEvent(state, '本地素材检测', visibleTitle(post), infos.length + ' 个文件，未上传服务器');
+        touch(post); render(); showToast('素材规格已在本地读取。刷新页面后需重新选择原文件。');
+      }).catch(function(error) { showToast(error.message || '读取素材失败。'); });
     }
     return;
   }
   const post = selectedPost();
   if (!post) return;
+  if (input.dataset.scope === 'publish-check') {
+    if (!isApproved(post, selectedPlatform)) return;
+    const v = post.variants[selectedPlatform];
+    v.publishChecks ||= { account:false, media:false, disclosures:false, visibility:false };
+    if (['account','media','disclosures','visibility'].includes(input.dataset.field)) v.publishChecks[input.dataset.field] = input.checked;
+    persist(); render(); return;
+  }
   const obj = input.dataset.scope === 'post' ? post : post.variants[selectedPlatform];
   if (!obj) return;
   obj[input.dataset.field] = input.type === 'checkbox' ? input.checked : input.value;
@@ -516,6 +587,7 @@ importInput.addEventListener('change', async function() {
   try {
     const incoming = importState(JSON.parse(await file.text()));
     if (!confirm('导入将替换此浏览器中的整个内容库，同时清空导入数据的审批/发布状态。确定吗？请先导出旧库备份。')) return;
+    for (const id of mediaPreviews.keys()) releasePreview(id);
     state = incoming;
     selectedId = state.posts[0] ? state.posts[0].id : '';
     selectedPlatform = 'xiaohongshu';
@@ -527,7 +599,10 @@ document.addEventListener('keydown', function(event) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
     event.preventDefault();
     const post = selectedPost();
-    if (post) { touch(post); showToast('本地已保存。'); }
+    if (post) { touch(post, false); showToast('本地已保存。'); }
   }
 });
 render();
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('./sw.js').catch(function() { /* offline support is optional */ });
+}
