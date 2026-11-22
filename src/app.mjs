@@ -113,7 +113,7 @@ function renderDashboard() {
     stat('已发布登记', s.published, '人工回填链接') + '</section>' +
     '<div class="two-panels"><section class="panel"><div class="panel-head"><h2 class="panel-title">最近内容</h2>' +
     '<button class="text-link" data-action="go-library" type="button">查看全部</button></div>' +
-    (contentRows || empty('从第一条内容开始', '创建素材后生成小红书、抖音、视频号和 B 站版本。', '<button class="btn btn-primary" data-action="new" type="button">创建内容</button>')) +
+    (contentRows || empty('从第一条内容开始', '创建素材后生成小红书、抖音、视频号和 B 站版本。', '<button class="btn btn-primary" data-action="new" type="button">创建内容</button> <button class="btn" data-action="demo" type="button">载入体验示例</button>')) +
     '</section><section class="panel"><div class="panel-head"><h2 class="panel-title">推荐工作流</h2><span class="panel-subtitle">Human in the loop</span></div>' +
     '<div class="panel-body three-steps">' +
     '<div class="step"><span class="step-number">01</span><div><b>统一建档，分别改稿</b><p>先输入原始内容，再生成平台草稿。标题和正文由你最终定稿。</p></div></div>' +
@@ -297,7 +297,8 @@ function render() {
   const renderers = { dashboard: renderDashboard, library: renderLibrary, review: renderReview, calendar: renderCalendar, logs: renderLogs, about: renderAbout };
   workspace.innerHTML = renderers[currentView]();
 }
-function touch(post) {
+function touch(post, contentChanged = true) {
+  if (contentChanged) post.revision = (post.revision || 0) + 1;
   post.updatedAt = new Date().toISOString();
   persist();
 }
@@ -425,7 +426,7 @@ async function action(name, dataset) {
   if (name === 'save') {
     const item = requirePost();
     auditEvent(state, '人工保存', visibleTitle(item), '保存当前内容与平台版本。');
-    touch(item); render(); showToast('已保存在当前浏览器。'); return;
+    touch(item, false); render(); showToast('已保存在当前浏览器。'); return;
   }
   if (name === 'approve') {
     const item = requirePost();
@@ -464,7 +465,8 @@ document.addEventListener('click', function(event) {
   if (viewButton) { setView(viewButton.dataset.view); return; }
   const button = event.target.closest('[data-action]');
   if (!button || button.disabled) return;
-  Promise.resolve().then(function() { return action(button.dataset.action, button.dataset); })
+  // Call synchronously inside the user gesture: window.open would otherwise be popup-blocked.
+  action(button.dataset.action, button.dataset)
     .catch(function(error) { showToast(error && error.message ? error.message : '操作失败，请检查内容。'); });
 });
 document.addEventListener('input', function(event) {

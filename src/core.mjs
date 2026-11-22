@@ -16,7 +16,7 @@ const TITLE_FALLBACK = '未命名内容';
 
 export function createPost(id = makeId()) {
   return {
-    id, title: '', source: '', kind: 'video', mediaNames: [],
+    id, revision: 0, title: '', source: '', kind: 'video', mediaNames: [],
     rights: 'unknown', aiUsed: false, commercial: false,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     variants: {}
@@ -70,7 +70,7 @@ export function fingerprint(post, platform) {
   const v = post.variants[platform];
   if (!v) return '';
   const payload = JSON.stringify([
-    post.title, post.source, post.kind, post.mediaNames, post.rights,
+    post.revision || 0, post.title, post.source, post.kind, post.mediaNames, post.rights,
     post.aiUsed, post.commercial,
     v.title, v.body, v.tags, v.plannedAt, v.aiLabel, v.commercialLabel
   ]);

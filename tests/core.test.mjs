@@ -39,6 +39,14 @@ test('编辑、修改 AI 声明与计划时间后旧审核立即失效', () => {
   assert.notEqual(fingerprint(p, 'xiaohongshu'), original);
   assert.equal(isApproved(p, 'xiaohongshu'), false);
 });
+test('版本内容改回原文，也不能复用之前的人工审批', () => {
+  const p = fixture(); p.variants.xiaohongshu.warningAcknowledged = true;
+  approve(p, 'xiaohongshu', [p]);
+  const old = p.variants.xiaohongshu.body;
+  p.variants.xiaohongshu.body += '改动'; p.revision++;
+  p.variants.xiaohongshu.body = old; p.revision++;
+  assert.equal(isApproved(p, 'xiaohongshu'), false);
+});
 test('AI 生成和商业推广声明是阻断项', () => {
   const p = fixture(); p.aiUsed = true; p.commercial = true;
   const r = review(p, 'xiaohongshu', [p]);

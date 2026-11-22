@@ -4,7 +4,7 @@
 
 把一条内容整理成多个平台版本，统一完成风险预检、人工审核、复制发布材料和发布结果登记。**不读取账号密码 / Cookie，不自动点击平台「发布」，不在后台代发。**
 
-> FreePublish 2.0 是从原来的 **free publish** 安全发布手册演化来的可运行工具。历史文档保留在根目录的 \`01-规则与边界.md\` 至 \`05-失败模式库.md\` 中。平台具体规则会变，使用前需核对官方最新页面。
+> FreePublish 2.0 是从原来的 **free publish** 安全发布手册演化来的可运行工具。历史文档保留在根目录的 `01-规则与边界.md` 至 `05-失败模式库.md` 中。平台具体规则会变，使用前需核对官方最新页面。
 
 ## 现在已支持
 
@@ -20,13 +20,13 @@
 
 ## 启动（零依赖）
 
-需要现代浏览器。推荐通过 HTTP 本地打开，而不是直接双击 \`index.html\`。
+需要现代浏览器。推荐通过 HTTP 本地打开，而不是直接双击 `index.html`。
 
-\`\`\`bash
+```bash
 git clone https://github.com/AIPMAndy/free-publish.git
 cd free-publish
 python3 -m http.server 8000
-\`\`\`
+```
 
 浏览器打开 **http://localhost:8000** 即可使用。整个界面无外部 CDN、无后端、无 npm 运行时依赖。
 
@@ -45,10 +45,10 @@ python3 -m http.server 8000
 
 ## 运行测试
 
-\`\`\`bash
+```bash
 node --test tests/*.test.mjs
 node --check src/app.mjs
-\`\`\`
+```
 
 无需安装第三方包。GitHub Actions 也会运行核心逻辑测试和 JavaScript 语法检查。
 
