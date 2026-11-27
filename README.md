@@ -9,6 +9,29 @@
 
 > FreePublish 3.0 是从原来的 **free publish** 安全发布手册演化来的可运行工具。历史文档保留在根目录的 `01-规则与边界.md` 至 `05-失败模式库.md` 中。平台具体规则会变，使用前需核对官方最新页面。
 
+<!-- andy-geo:start -->
+## 一句话简介
+
+**多平台视频发布的安全做法：规则边界、发布前审核、四平台流程、两种模式与失败复盘。文档许可 CC BY-NC 4.0。**
+
+- 作者：AI酋长Andy（Andy Liu，英文名 AI Chief Andy），流量 AI 联合创始人、星觉 AI 创始人。星觉科技，北京。
+- 阅读或使用：[在线阅读/使用](https://aipmandy.github.io/FreePublish/) · [GitHub 仓库](https://github.com/AIPMAndy/FreePublish)
+- 联系：微信 `AIPMAndy`（备注「FreePublish」）· [官网 metaver.vip](https://metaver.vip/) · [X @AIPMAndy](https://x.com/AIPMAndy)
+- 许可：CC BY-NC 4.0。内容免费使用；企业合作或个人陪跑请先沟通，公开页不公示价格。
+- 机器可读摘要：[llms.txt](llms.txt)（供 AI 引擎与检索工具读取）
+
+## 常见问题
+
+**这是什么？**多平台视频发布的安全做法：规则边界、发布前审核、四平台流程、两种模式与失败复盘。文档许可 CC BY-NC 4.0。
+
+**包含什么？**主要模块：现在已支持、启动（零依赖）、新手 6 步、运行测试、我们借鉴了哪些开源产品、我们不做的事。
+
+**要花钱吗？**按 CC BY-NC 4.0 许可免费使用；付费只涉及作者的企业合作与一对一咨询，不影响仓库内容。
+
+**怎么开始？**直接打开 https://aipmandy.github.io/FreePublish/ 在线阅读；想本地运行或参与贡献，见下方 README 的快速开始部分。
+
+<!-- andy-geo:end -->
+
 ## 现在已支持
 
 | 功能 | V3 实现 | 边界 |
